@@ -1,0 +1,62 @@
+name: Build APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install unzip
+        run: sudo apt-get update && sudo apt-get install -y unzip
+
+      - name: Unzip project
+        run: |
+          rm -rf extracted
+          mkdir -p extracted
+          unzip -o to_best_project.zip -d extracted
+          find extracted -maxdepth 3 -type f | sort
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.0'
+          channel: stable
+          cache: true
+
+      - name: Complete Android scaffold
+        working-directory: extracted/to_best
+        run: |
+          flutter create --platforms=android --project-name to_best .
+          find android/app/src/main -name 'MainActivity.kt' -o -name 'MainActivity.java' -delete
+          mkdir -p android/app/src/main/kotlin/com/tobest/app
+          cat > android/app/src/main/kotlin/com/tobest/app/MainActivity.kt <<'EOF'
+          package com.tobest.app
+          import io.flutter.embedding.android.FlutterActivity
+          class MainActivity: FlutterActivity()
+          EOF
+
+      - name: Get dependencies
+        working-directory: extracted/to_best
+        run: flutter pub get
+
+      - name: Build release APK
+        working-directory: extracted/to_best
+        run: flutter build apk --release
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-release
+          path: extracted/to_best/build/app/outputs/flutter-apk/*.apk

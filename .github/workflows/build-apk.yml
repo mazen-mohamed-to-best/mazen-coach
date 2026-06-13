@@ -20,7 +20,14 @@ jobs:
           rm -rf extracted
           mkdir -p extracted
           unzip -o to_best_project.zip -d extracted
-          find extracted -maxdepth 3 -type f | sort
+          find extracted -name pubspec.yaml | head -n 20
+
+      - name: Detect project root
+        run: |
+          PROJECT_DIR="$(dirname "$(find extracted -name pubspec.yaml | head -n 1)")"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
+          echo "Detected project dir: $PROJECT_DIR"
+          ls -la "$PROJECT_DIR"
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -35,11 +42,22 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Complete Android scaffold
-        working-directory: extracted/to_best
+      - name: Recreate Android scaffold
         run: |
-          flutter create --platforms=android --project-name to_best .
-          find android/app/src/main -name 'MainActivity.kt' -o -name 'MainActivity.java' -delete
+          cd "$PROJECT_DIR"
+
+          rm -rf android
+          flutter create --platforms=android --org com.tobest.app --project-name to_best .
+
+          if [ -f android/build.gradle ]; then
+            sed -i "s/ext.kotlin_version = '.*/ext.kotlin_version = '1.9.24'/" android/build.gradle || true
+            sed -i "s/kotlin_version = '.*/kotlin_version = '1.9.24'/" android/build.gradle || true
+          fi
+
+          if [ -f android/settings.gradle ]; then
+            sed -i "s/version ['\"][0-9.]*['\"]/version '1.9.24'/" android/settings.gradle || true
+          fi
+
           mkdir -p android/app/src/main/kotlin/com/tobest/app
           cat > android/app/src/main/kotlin/com/tobest/app/MainActivity.kt <<'EOF'
           package com.tobest.app
@@ -48,15 +66,17 @@ jobs:
           EOF
 
       - name: Get dependencies
-        working-directory: extracted/to_best
-        run: flutter pub get
+        run: |
+          cd "$PROJECT_DIR"
+          flutter pub get
 
       - name: Build release APK
-        working-directory: extracted/to_best
-        run: flutter build apk --release
+        run: |
+          cd "$PROJECT_DIR"
+          flutter build apk --release
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: apk-release
-          path: extracted/to_best/build/app/outputs/flutter-apk/*.apk
+          path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/*.apk

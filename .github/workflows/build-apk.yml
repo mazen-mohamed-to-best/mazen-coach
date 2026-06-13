@@ -49,15 +49,6 @@ jobs:
           rm -rf android
           flutter create --platforms=android --org com.tobest.app --project-name to_best .
 
-          if [ -f android/build.gradle ]; then
-            sed -i "s/ext.kotlin_version = '.*/ext.kotlin_version = '1.9.24'/" android/build.gradle || true
-            sed -i "s/kotlin_version = '.*/kotlin_version = '1.9.24'/" android/build.gradle || true
-          fi
-
-          if [ -f android/settings.gradle ]; then
-            sed -i "s/version ['\"][0-9.]*['\"]/version '1.9.24'/" android/settings.gradle || true
-          fi
-
           mkdir -p android/app/src/main/kotlin/com/tobest/app
           cat > android/app/src/main/kotlin/com/tobest/app/MainActivity.kt <<'EOF'
           package com.tobest.app

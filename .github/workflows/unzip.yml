@@ -1,0 +1,32 @@
+name: Unzip Project
+
+on:
+  workflow_dispatch:
+
+jobs:
+  unzip:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check zip file exists
+        run: |
+          ls -la
+          test -f to_best_project.zip
+
+      - name: Install unzip
+        run: sudo apt-get update && sudo apt-get install -y unzip
+
+      - name: Unzip file
+        run: |
+          mkdir -p extracted
+          unzip -o to_best_project.zip -d extracted
+          find extracted -maxdepth 3 -type f | sort
+
+      - name: Upload extracted files
+        uses: actions/upload-artifact@v4
+        with:
+          name: extracted-project
+          path: extracted

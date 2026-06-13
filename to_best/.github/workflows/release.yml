@@ -1,0 +1,73 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'          # يشتغل عند push tag مثل: v1.1.0
+  workflow_dispatch:  # أو يشغّله يدوياً من GitHub website
+
+jobs:
+  build-android:
+    name: Build Android AAB
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.0'
+          channel: stable
+          cache: true
+
+      - name: Pub get
+        run: flutter pub get
+        working-directory: to_best
+
+      - name: Decode Keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > to_best/android/app/keystore.jks
+          cat > to_best/android/key.properties <<EOF
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          storeFile=keystore.jks
+          EOF
+
+      - name: Build AAB
+        run: flutter build appbundle --release
+        working-directory: to_best
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-aab
+          path: to_best/build/app/outputs/bundle/release/app-release.aab
+          retention-days: 7
+
+      - name: Deploy to Play Store (Internal)
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.SERVICE_ACCOUNT_JSON }}
+          packageName: com.tobest.app
+          releaseFiles: to_best/build/app/outputs/bundle/release/app-release.aab
+          track: internal
+          status: completed
+          changesNotSentForReview: false
+
+      - name: Notify on success
+        if: success()
+        run: echo "✅ Build and deploy complete! Check Play Console → Internal Testing."
+
+      - name: Notify on failure
+        if: failure()
+        run: echo "❌ Build failed. Check logs above."
